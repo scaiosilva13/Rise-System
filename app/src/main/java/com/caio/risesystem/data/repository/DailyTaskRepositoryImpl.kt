@@ -181,6 +181,25 @@ class DailyTaskRepositoryImpl(
             now
         )
 
+        // 6. Treino do dia
+        try {
+            val localDate = java.time.LocalDate.parse(date)
+            val dayOfWeek = localDate.dayOfWeek
+            val trainingContent = WeeklyTrainingContent.getContent(dayOfWeek)
+            updateTaskDetails(
+                date = date,
+                sortOrder = 6,
+                type = DailyTaskType.WORKOUT,
+                newTitle = trainingContent.title,
+                newSummary = trainingContent.summary,
+                newDetails = trainingContent.details,
+                updatedAt = now,
+                newSuggestedTime = trainingContent.suggestedTime
+            )
+        } catch (e: Exception) {
+            // Fallback para caso de erro no parse da data
+        }
+
         // 7. Jantar
         updateTaskDetails(date, 7, DailyTaskType.MEAL,
             "Jantar",
@@ -254,7 +273,8 @@ class DailyTaskRepositoryImpl(
         newTitle: String,
         newSummary: String,
         newDetails: String,
-        updatedAt: Long
+        updatedAt: Long,
+        newSuggestedTime: String? = null
     ) {
         val existing = dailyTaskDao.getTaskByProperties(date, sortOrder, type.name)
         if (existing != null) {
@@ -262,6 +282,7 @@ class DailyTaskRepositoryImpl(
                 title = newTitle,
                 summary = newSummary,
                 details = newDetails,
+                suggestedTime = newSuggestedTime ?: existing.suggestedTime,
                 updatedAt = updatedAt
             ))
         }
