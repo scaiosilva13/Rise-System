@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface DailyTaskRepository {
     fun observeTasksByDate(date: String): Flow<List<DailyTask>>
+    fun observeTaskById(id: Long): Flow<DailyTask?>
     suspend fun updateTaskStatus(id: Long, status: DailyTaskStatus)
     suspend fun initializeTasksForDate(date: String)
 }

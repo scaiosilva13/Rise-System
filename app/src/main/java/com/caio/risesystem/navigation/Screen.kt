@@ -14,6 +14,15 @@ sealed class Screen(
         title = "Hoje"
     )
 
+    data object TaskDetail : Screen(
+        route = "task_detail/{taskId}",
+        title = "Detalhes"
+    ) {
+        fun createRoute(taskId: Long): String {
+            return "task_detail/$taskId"
+        }
+    }
+
     data object Dashboard : Screen(
         route = "dashboard",
         title = "Dashboard"

@@ -35,6 +35,7 @@ import com.caio.risesystem.ui.home.HomeScreen
 import com.caio.risesystem.ui.missions.MissionsScreen
 import com.caio.risesystem.ui.profile.ProfileScreen
 import com.caio.risesystem.ui.today.TodayScreen
+import com.caio.risesystem.ui.today.TaskDetailScreen
 import com.caio.risesystem.ui.today.TodayViewModel
 import com.caio.risesystem.ui.today.TodayViewModelFactory
 import com.caio.risesystem.ui.validation.TimerValidationScreen
@@ -86,7 +87,8 @@ fun RiseNavigation() {
     val showBottomBar =
         currentRoute != Screen.Validation.route &&
                 currentRoute != Screen.TimerValidation.route &&
-                currentRoute != Screen.CameraValidation.route
+                currentRoute != Screen.CameraValidation.route &&
+                currentRoute?.startsWith("task_detail") == false
 
     Scaffold(
         containerColor = Color(0xFF020711),
@@ -179,7 +181,25 @@ fun RiseNavigation() {
                 route = Screen.Today.route
             ) {
                 TodayScreen(
-                    viewModel = todayViewModel
+                    viewModel = todayViewModel,
+                    onOpenTaskDetail = { taskId ->
+                        navController.navigate(Screen.TaskDetail.createRoute(taskId))
+                    }
+                )
+            }
+
+            // TASK DETAIL
+            composable(
+                route = Screen.TaskDetail.route,
+                arguments = listOf(
+                    navArgument("taskId") { type = NavType.LongType }
+                )
+            ) { backStackEntry ->
+                val taskId = backStackEntry.arguments?.getLong("taskId") ?: 0L
+                TaskDetailScreen(
+                    taskId = taskId,
+                    viewModel = todayViewModel,
+                    onBack = { navController.popBackStack() }
                 )
             }
 

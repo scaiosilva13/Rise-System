@@ -23,6 +23,15 @@ abstract class DailyTaskDao {
     @Query("SELECT COUNT(*) FROM daily_tasks WHERE date = :date")
     abstract suspend fun countByDate(date: String): Int
 
+    @Query("SELECT * FROM daily_tasks WHERE id = :id")
+    abstract fun observeTaskById(id: Long): Flow<DailyTaskEntity?>
+
+    @Query("SELECT * FROM daily_tasks WHERE date = :date AND sortOrder = :sortOrder AND type = :type LIMIT 1")
+    abstract suspend fun getTaskByProperties(date: String, sortOrder: Int, type: String): DailyTaskEntity?
+
+    @androidx.room.Update
+    abstract suspend fun update(task: DailyTaskEntity)
+
     @Transaction
     open suspend fun initializeTasksIfEmpty(date: String, tasks: List<DailyTaskEntity>) {
         val count = countByDate(date)

@@ -27,7 +27,8 @@ import com.caio.risesystem.domain.model.DailyTaskType
 
 @Composable
 fun TodayScreen(
-    viewModel: TodayViewModel
+    viewModel: TodayViewModel,
+    onOpenTaskDetail: (Long) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
@@ -75,7 +76,8 @@ fun TodayScreen(
                     task = task,
                     onStatusChange = { newStatus ->
                         viewModel.updateTaskStatus(task.id, newStatus)
-                    }
+                    },
+                    onClick = { onOpenTaskDetail(task.id) }
                 )
             }
         }
@@ -165,17 +167,16 @@ fun AdherenceCard(
 @Composable
 fun TaskItem(
     task: DailyTask,
-    onStatusChange: (DailyTaskStatus) -> Unit
+    onStatusChange: (DailyTaskStatus) -> Unit,
+    onClick: () -> Unit
 ) {
-    var showMenu by remember { mutableStateOf(false) }
-
     Surface(
         color = Color(0xFF030A14),
         shape = RoundedCornerShape(12.dp),
         tonalElevation = 2.dp,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { showMenu = true }
+            .clickable { onClick() }
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
