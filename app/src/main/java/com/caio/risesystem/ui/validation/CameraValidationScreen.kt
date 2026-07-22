@@ -44,6 +44,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import com.caio.risesystem.domain.biomechanics.MediaPipeSquatProcessor
+import com.caio.risesystem.domain.biomechanics.SquatAnalysisResult
+import com.caio.risesystem.domain.biomechanics.SquatState
 import com.caio.risesystem.domain.model.Mission
 import com.caio.risesystem.ui.validation.pose.PoseDetectionState
 import com.caio.risesystem.ui.validation.pose.PoseLandmarkerHelper
@@ -76,12 +79,40 @@ fun CameraValidationScreen(
         mutableStateOf(PoseDetectionState())
     }
 
+    var targetReps by remember { mutableStateOf(10) }
+    var isSeriesCompleted by remember { mutableStateOf(false) }
+
+    val mediaPipeSquatProcessor = remember {
+        MediaPipeSquatProcessor()
+    }
+
+    var showRepFeedback by remember { mutableStateOf(false) }
+
+    LaunchedEffect(poseState.squatAnalysisResult?.repCount) {
+        val count = poseState.squatAnalysisResult?.repCount ?: 0
+        if (count > 0 && count <= targetReps) {
+            showRepFeedback = true
+            kotlinx.coroutines.delay(1000)
+            showRepFeedback = false
+        }
+    }
+
     val poseLandmarkerHelper = remember {
         PoseLandmarkerHelper(
             context = context,
             onResults = { result ->
                 val detectedPose =
                     result.landmarks().firstOrNull()
+
+                val squatResult = if (!isSeriesCompleted) {
+                    val res = mediaPipeSquatProcessor.process(result)
+                    if (res.repCount >= targetReps) {
+                        isSeriesCompleted = true
+                    }
+                    res
+                } else {
+                    poseState.squatAnalysisResult
+                }
 
                 mainExecutor.execute {
                     poseState = poseState.copy(
@@ -93,7 +124,8 @@ fun CameraValidationScreen(
                             detectedPose?.size ?: 0,
                         landmarks =
                             detectedPose ?: emptyList(),
-                        errorMessage = null
+                        errorMessage = null,
+                        squatAnalysisResult = squatResult
                     )
                 }
             },
@@ -104,7 +136,8 @@ fun CameraValidationScreen(
                         personDetected = false,
                         detectedLandmarks = 0,
                         landmarks = emptyList(),
-                        errorMessage = message
+                        errorMessage = message,
+                        squatAnalysisResult = null
                     )
                 }
             }
@@ -121,6 +154,7 @@ fun CameraValidationScreen(
     DisposableEffect(poseLandmarkerHelper) {
         onDispose {
             poseLandmarkerHelper.close()
+            mediaPipeSquatProcessor.reset()
         }
     }
 
@@ -185,6 +219,24 @@ fun CameraValidationScreen(
         )
 
         Spacer(
+            modifier = Modifier.height(8.dp)
+        )
+
+        TargetSelector(
+            currentTarget = targetReps,
+            onTargetSelected = { newTarget ->
+                if (newTarget != targetReps) {
+                    targetReps = newTarget
+                    mediaPipeSquatProcessor.reset()
+                    isSeriesCompleted = false
+                    poseState = poseState.copy(squatAnalysisResult = null)
+                    showRepFeedback = false
+                }
+            },
+            enabled = !isSeriesCompleted
+        )
+
+        Spacer(
             modifier = Modifier.height(12.dp)
         )
 
@@ -208,6 +260,26 @@ fun CameraValidationScreen(
                     modifier = Modifier.fillMaxSize(),
                     mirrorHorizontally = true
                 )
+
+                SquatResultOverlay(
+                    result = poseState.squatAnalysisResult,
+                    targetReps = targetReps,
+                    showFeedback = showRepFeedback,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                if (isSeriesCompleted) {
+                    SeriesCompletionOverlay(
+                        repCount = targetReps,
+                        onNewSeries = {
+                            mediaPipeSquatProcessor.reset()
+                            isSeriesCompleted = false
+                            poseState = poseState.copy(squatAnalysisResult = null)
+                            showRepFeedback = false
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             } else {
                 PermissionDeniedContent(
                     onRequestPermission = {
@@ -244,6 +316,33 @@ fun CameraValidationScreen(
 
         Spacer(
             modifier = Modifier.height(14.dp)
+        )
+
+        OutlinedButton(
+            onClick = {
+                mediaPipeSquatProcessor.reset()
+                isSeriesCompleted = false
+                poseState = poseState.copy(
+                    squatAnalysisResult = null,
+                    personDetected = false,
+                    detectedLandmarks = 0,
+                    landmarks = emptyList()
+                )
+                showRepFeedback = false
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Color(0xFFFFC857)
+            )
+        ) {
+            Text(
+                text = "REINICIAR SÉRIE",
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Spacer(
+            modifier = Modifier.height(10.dp)
         )
 
         OutlinedButton(
@@ -507,6 +606,180 @@ private fun ImageProxy.toRotatedBitmap(): Bitmap? {
     }
 
     return rotatedBitmap
+}
+
+@Composable
+private fun TargetSelector(
+    currentTarget: Int,
+    onTargetSelected: (Int) -> Unit,
+    enabled: Boolean
+) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "META:",
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+        
+        listOf(5, 10, 15).forEach { target ->
+            val isSelected = target == currentTarget
+            androidx.compose.material3.FilterChip(
+                selected = isSelected,
+                onClick = { if (enabled) onTargetSelected(target) },
+                label = { Text(target.toString()) },
+                enabled = enabled,
+                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Color(0xFF2AF5F5),
+                    selectedLabelColor = Color.Black,
+                    labelColor = Color.White,
+                    containerColor = Color(0xFF071823)
+                ),
+                border = androidx.compose.material3.FilterChipDefaults.filterChipBorder(
+                    enabled = enabled,
+                    selected = isSelected,
+                    borderColor = Color(0xFF1E2A37),
+                    selectedBorderColor = Color(0xFF2AF5F5)
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun SeriesCompletionOverlay(
+    repCount: Int,
+    onNewSeries: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.8f))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .background(Color(0xFF071823), shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp))
+                .padding(32.dp)
+        ) {
+            Text(
+                text = "SÉRIE CONCLUÍDA",
+                color = Color(0xFF2ADFA6),
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Você realizou $repCount agachamentos!",
+                color = Color.White,
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Button(
+                onClick = onNewSeries,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF2AF5F5),
+                    contentColor = Color.Black
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "NOVA SÉRIE",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SquatResultOverlay(
+    result: SquatAnalysisResult?,
+    targetReps: Int,
+    showFeedback: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val rawRepCount = result?.repCount ?: 0
+    val repCount = if (rawRepCount > targetReps) targetReps else rawRepCount
+    val state = result?.state ?: SquatState.UNKNOWN
+    val hasValidData = result?.hasValidData ?: false
+
+    val statusText = when (state) {
+        SquatState.UNKNOWN -> "AGUARDANDO MOVIMENTO"
+        SquatState.STANDING -> "POSIÇÃO INICIAL"
+        SquatState.DESCENDING -> "DESCENDO..."
+        SquatState.BOTTOM -> "NO FUNDO"
+        SquatState.ASCENDING -> "SUBINDO..."
+    }
+
+    val guidanceText = when {
+        showFeedback -> "Repetição válida"
+        result == null -> "Preparando análise..."
+        !hasValidData -> "Posicione o corpo inteiro na câmera"
+        state == SquatState.STANDING -> "Pronto — comece a descer"
+        state == SquatState.DESCENDING -> "Continue descendo"
+        state == SquatState.BOTTOM -> "Profundidade atingida — agora suba"
+        state == SquatState.ASCENDING -> "Continue subindo"
+        state == SquatState.UNKNOWN -> "Posicione o corpo inteiro na câmera"
+        else -> ""
+    }
+
+    Box(
+        modifier = modifier.padding(16.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .background(
+                    Color.Black.copy(alpha = 0.6f),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                )
+                .padding(horizontal = 20.dp, vertical = 12.dp)
+        ) {
+            Text(
+                text = "$repCount / $targetReps",
+                color = Color(0xFF2AF5F5),
+                fontSize = 42.sp,
+                fontWeight = FontWeight.Black
+            )
+            Text(
+                text = "REPETIÇÕES",
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = statusText,
+                color = if (hasValidData) Color(0xFF2ADFA6) else Color(0xFFFFC857),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = guidanceText,
+                color = if (showFeedback) Color(0xFF2AF5F5) else Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
 }
 
 @Composable

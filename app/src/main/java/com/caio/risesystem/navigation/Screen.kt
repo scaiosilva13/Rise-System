@@ -9,6 +9,11 @@ sealed class Screen(
         title = "Home"
     )
 
+    data object Today : Screen(
+        route = "today",
+        title = "Hoje"
+    )
+
     data object Dashboard : Screen(
         route = "dashboard",
         title = "Dashboard"

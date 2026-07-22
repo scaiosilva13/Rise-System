@@ -14,6 +14,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -33,20 +34,34 @@ import com.caio.risesystem.ui.dashboard.DashboardScreen
 import com.caio.risesystem.ui.home.HomeScreen
 import com.caio.risesystem.ui.missions.MissionsScreen
 import com.caio.risesystem.ui.profile.ProfileScreen
+import com.caio.risesystem.ui.today.TodayScreen
+import com.caio.risesystem.ui.today.TodayViewModel
+import com.caio.risesystem.ui.today.TodayViewModelFactory
 import com.caio.risesystem.ui.validation.TimerValidationScreen
 import com.caio.risesystem.ui.validation.ValidationSetupScreen
 import com.caio.risesystem.ui.viewmodel.RiseViewModel
 import com.caio.risesystem.ui.viewmodel.RiseViewModelFactory
 import com.caio.risesystem.ui.validation.CameraValidationScreen
+import com.caio.risesystem.data.repository.DailyTaskRepositoryImpl
 
 @Composable
 fun RiseNavigation() {
     val application =
         LocalContext.current.applicationContext as RiseApplication
 
+    val dailyTaskRepository = remember {
+        DailyTaskRepositoryImpl(application.database)
+    }
+
     val riseViewModel: RiseViewModel = viewModel(
         factory = RiseViewModelFactory(
             repository = application.repository
+        )
+    )
+
+    val todayViewModel: TodayViewModel = viewModel(
+        factory = TodayViewModelFactory(
+            repository = dailyTaskRepository
         )
     )
 
@@ -56,7 +71,7 @@ fun RiseNavigation() {
     val navController = rememberNavController()
 
     val mainScreens = listOf(
-        Screen.Home,
+        Screen.Today,
         Screen.Dashboard,
         Screen.Missions,
         Screen.Profile
@@ -105,7 +120,7 @@ fun RiseNavigation() {
                             icon = {
                                 Icon(
                                     imageVector = when (screen) {
-                                        Screen.Home ->
+                                        Screen.Today ->
                                             Icons.Default.Home
 
                                         Screen.Dashboard ->
@@ -155,9 +170,18 @@ fun RiseNavigation() {
 
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = Screen.Today.route,
             modifier = Modifier.padding(innerPadding)
         ) {
+
+            // TODAY
+            composable(
+                route = Screen.Today.route
+            ) {
+                TodayScreen(
+                    viewModel = todayViewModel
+                )
+            }
 
             // HOME
             composable(

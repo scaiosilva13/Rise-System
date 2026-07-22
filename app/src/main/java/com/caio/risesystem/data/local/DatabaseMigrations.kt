@@ -33,3 +33,25 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
     }
 }
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `daily_tasks` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, 
+                `date` TEXT NOT NULL, 
+                `type` TEXT NOT NULL, 
+                `title` TEXT NOT NULL, 
+                `summary` TEXT NOT NULL, 
+                `suggestedTime` TEXT NOT NULL, 
+                `status` TEXT NOT NULL, 
+                `sortOrder` INTEGER NOT NULL, 
+                `details` TEXT NOT NULL, 
+                `createdAt` INTEGER NOT NULL, 
+                `updatedAt` INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+    }
+}
